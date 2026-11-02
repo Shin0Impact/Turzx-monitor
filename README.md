@@ -1,69 +1,84 @@
 # Turing Screen
 
-An app for the Turing Smart Screen 3.5" (USB35INCHIPSV2). Pick what the screen shows in the control panel:
+Live system stats, GIFs and a clock for the **Turing Smart Screen 3.5"** (USB, serial ID `USB35INCHIPSV2`),
+with a small control panel on your PC. It goes dark when the PC sleeps and shows a dim clock while Windows is locked.
 
-- **Big stats**: CPU, GPU, RAM (and network, off by default) in large numbers you can read from your chair.
-  Turn each item on/off in the control panel; the others grow to fill the screen.
-- **Detailed stats**: everything (per-core load, graphs, VRAM, drives, disk and network speed)
-- **GIF**: full screen, picked from your GIF library (or a slideshow)
-- **Clock**: big full-screen clock
+| Show | What it is |
+|---|---|
+| **Big stats** | CPU, GPU, RAM (and network) in large numbers readable from across the desk. Each item can be turned off; the rest grow to fill the screen. |
+| **Detailed stats** | Everything at once: per-core load, graphs, VRAM, drives, disk and network speeds. |
+| **GIF** | Any animation from your library, full screen, or a slideshow. |
+| **Clock** | Large full-screen clock in a colour you choose. |
 
-When Windows is **locked or turns the monitors off**, the screen shows a dim clock (or turns off; you choose).
-When the PC **sleeps or shuts down**, the screen turns off, because nothing can update it while the PC is asleep.
+## Install
 
-## Start
-1. `setup.bat` (once, and again after updates).
-2. Double-click **`Turing Screen.vbs`**. It opens the control panel and adds a tray icon.
-   Closing the window keeps the screen running; reopen it from the tray icon or by double-clicking again.
-3. `install_startup.bat`: starts it in the background when you log in (`uninstall_startup.bat` undoes it).
+1. Install [Python 3.11 or newer](https://www.python.org/downloads/) (tick "Add python.exe to PATH").
+2. Double-click **`install.bat`**.
 
-`run.bat` does the same as step 2 but with a log window, which is useful when something goes wrong.
+It builds a private Python environment in this folder, installs the packages, makes the app **start with Windows**,
+adds a **Turing Screen** entry to the Start Menu, and starts it. To remove: **`uninstall.bat`**, then delete the folder.
 
-## GIFs
-Use **Add GIFs…** in the control panel (or drop files into the `gifs` folder). Click a GIF to show it.
+If the screen stays blank, close the official TURZX / USBMonitor app (and stop it starting with Windows): only one
+program can use the screen at a time.
 
-This screen takes about 125 KB per second (the benchmark shows that's the screen's own limit), and one
-full-screen picture is 307 KB. It also paints top to bottom, with no way to swap in a finished picture.
-Only the pixels that change are sent, so the label under each GIF (a playback simulation) tells you how it will look:
+## Using it
 
-**GIFs that play well**
-- A small thing moving on a still background: characters, pets, pixel art, loading spinners, logos.
-- A flat or solid background. Gradients and photos are fine if they don't move.
-- Small GIFs shown with **Original size**: a 160×160 GIF can never cost more than a quarter of the screen.
-- Cropping a GIF down to the part that moves (for example at ezgif.com > crop) helps a lot.
+The control panel opens on install. Closing it keeps the screen running (tray icon, bottom right); open it again
+from the tray icon or the Start Menu. Everything you change is remembered.
 
-**GIFs that play badly**
-- Anything where the whole picture moves: video clips, camera pans, zooms, rain or snow over everything, fire.
-- Converted videos with colour noise. **Noise clean-up** removes most of it (normal/strong); on a noisy
-  test GIF it took playback from 0.4 to about 3.7 fps without leaving trails.
+- **Show on screen**: pick Big stats, Detailed stats, GIF or Clock.
+- **GIFs**: *Add GIFs…*, then click one. Each GIF shows how smoothly it will play (see below).
+- **Clock colour**: a few presets or any colour.
+- **Locked or monitors off**: show a dim clock, or turn the screen off. A sleeping or shutting-down PC always turns it off.
+- **Start with Windows** can be switched off in the panel.
 
-The `gifs` folder comes with 12 examples made for this screen (pixel cat, fish tank, campfire, heartbeat,
-spinner, orbit, bouncing badge, snake, Newton's cradle, ghost, clouds, terminal). `make_examples.py` regenerates them.
+Advanced settings are in `config.toml`. `run.bat` starts the app with a log window if something goes wrong; the log is
+`logs\turing.log`, and startup crashes are written to `logs\crash.log`.
 
-Where to find more: search for "pixel art gif", "sprite animation gif" or "transparent gif" (a transparent
-background is shown on black, so only the subject moves).
+## GIFs on a slow screen
 
-## Repainting
-The screen draws every change from top to bottom. To make that less visible:
-- **Calm numbers** (Big stats): a number is only redrawn when it really changed (3% load, 1.5° temperature, 25% network speed).
-- **Hide the wipe when switching**: the screen goes dark while a whole new picture loads, then lights up finished.
+The screen accepts about 125 KB/s and one full picture is 307 KB, and it draws top to bottom. So only the pixels that
+change are sent:
 
-## Speed tuning
-`benchmark.bat` (quit the app first) tries 7 link settings. On this screen they all measured ~125 KB/s, so the defaults are fine.
+- **Plays well:** a small thing moving on a still background (characters, pixel art, spinners, logos), small GIFs
+  shown at *Original size*, anything cropped to the part that moves.
+- **Plays badly:** the whole picture moving (video clips, camera pans). Expect about 1 frame per second.
+- *Noise clean-up* removes colour noise from converted videos so they send less (a noisy test clip went from 0.4 to
+  about 3.7 fps).
+- 14 examples made for this screen are in `gifs/`. For more, search "pixel art gif" or "transparent gif".
+
+To make the switch between pictures look clean, *Hide the wipe when switching* keeps the screen dark for the ~2 s a
+new picture takes to load. *Calm numbers* redraws a number only when it really changed.
 
 ## CPU temperature
-Not shown. Windows doesn't expose the CPU temperature of a Ryzen 9 9900X to normal programs: all three built-in
-sources came back empty on this PC (`check_windows_temp.bat` shows what yours reports). Reading it needs a
-hardware driver, so the CPU row shows the clock speed instead. GPU temperature works (NVIDIA driver).
-Optional: set `librehardwaremonitor_url` in `config.toml` if you ever run LibreHardwareMonitor's web server.
 
-## If the screen stays blank
-The official TURZX / USBMonitor app (or AIDA64) holds the screen's port. Close it, including from the tray, and disable it at startup.
+Not shown. Windows doesn't give normal programs the CPU temperature of a Ryzen; reading it needs a hardware driver
+or a separate monitoring program, which this app deliberately avoids. `tools\check_windows_temp.bat` reports what your
+PC exposes if you want to check. The CPU row shows clock speed instead; GPU temperature works (NVIDIA driver).
 
-## Files
-`main.py` app loop · `ui.py` control panel · `pages.py` big stats/clock · `render.py` detailed stats ·
-`gifs.py` GIF player · `lcd.py` screen driver · `sensors.py` stats · `power_events.py` sleep/lock detection ·
-`config.toml` settings · `state.json` settings saved by the control panel · `logs\turing.log` log.
+## Development
 
-The screen protocol is based on turing-smart-screen-python by Matthieu Houdebine (GPL-3.0, see LICENSE).
-Fonts: Roboto (Apache 2.0) and JetBrains Mono (OFL), with licenses in `fonts\`.
+```
+pip install -r requirements-dev.txt
+pytest          # 150+ tests: protocol bytes, drawing, the app's behaviour on a simulated screen, the control panel
+ruff check .
+python -m turingscreen --simulate --no-ui --seconds 5    # no screen needed; writes previews/preview.png
+python tools/make_example_gifs.py                          # regenerate the example GIFs
+```
+
+| Path | Purpose |
+|---|---|
+| `turingscreen/lcd.py`, `simulator.py` | Screen protocol and a fake screen |
+| `turingscreen/display.py`, `diff.py` | Remembers what's on the glass, sends only what changed |
+| `turingscreen/app.py` | Decides what to show; sleep, lock, reconnecting, settings |
+| `turingscreen/views/` | Big stats, Detailed stats, Clock |
+| `turingscreen/gifs.py`, `gifprep.py` | GIF playback, clean-up and speed estimate |
+| `turingscreen/sensors.py`, `power.py` | System stats; Windows sleep and lock events |
+| `turingscreen/ui/`, `tray.py` | Control panel and tray icon |
+| `turingscreen/cli.py`, `autostart.py` | Command line, install, start with Windows |
+
+## Credits and licence
+
+The screen protocol comes from [turing-smart-screen-python](https://github.com/mathoudebine/turing-smart-screen-python)
+by Matthieu Houdebine (GPL-3.0), so this project is also **GPL-3.0** (see `LICENSE`). Fonts: Roboto (Apache 2.0) and
+JetBrains Mono (OFL), licences in `assets/fonts/`.

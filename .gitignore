@@ -1,42 +1,35 @@
 # --- Info about this PC (don't publish) ---
-# hardware report: USB device IDs and serial numbers, GPU, Windows build
+logs/
+state.json
+state.tmp
+open_panel.flag
+previews/
 detect_report.txt
 windows_temp_report.txt
-# logs contain CPU/GPU model, COM port, timestamps of lock/sleep events
-logs/
-*.log
-# settings saved by the control panel (paths to your GIF files, measured link speed)
-state.json
-state.json.tmp
-open_panel.flag
-# simulator output
-previews/
 
-# --- Your own GIFs (keep only the bundled examples in the repo) ---
+# --- GIFs you add yourself (the bundled examples stay in the repo) ---
 gifs/*
+!gifs/bouncing-badge.gif
+!gifs/campfire.gif
+!gifs/clouds.gif
+!gifs/fish-tank.gif
+!gifs/ghost.gif
+!gifs/heartbeat.gif
+!gifs/newtons-cradle.gif
+!gifs/orbit.gif
+!gifs/pixel-cat.gif
 !gifs/sample-ball.gif
 !gifs/sample-waves.gif
-!gifs/pixel-cat.gif
-!gifs/fish-tank.gif
-!gifs/campfire.gif
-!gifs/heartbeat.gif
-!gifs/spinner.gif
-!gifs/orbit.gif
-!gifs/bouncing-badge.gif
 !gifs/snake.gif
-!gifs/newtons-cradle.gif
-!gifs/ghost.gif
-!gifs/clouds.gif
+!gifs/spinner.gif
 !gifs/terminal.gif
 
 # --- Python / tools ---
 .venv/
-venv/
 __pycache__/
 *.py[cod]
-build/
-dist/
-*.spec
+.pytest_cache/
+.ruff_cache/
 .vscode/
 .idea/
 Thumbs.db
