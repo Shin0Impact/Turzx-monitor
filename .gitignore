@@ -1,0 +1,30 @@
+# --- Info about this PC (don't publish) ---
+# hardware report: USB device IDs and serial numbers, GPU, Windows build
+detect_report.txt
+# logs contain CPU/GPU model, COM port, timestamps of lock/sleep events
+logs/
+*.log
+# settings saved by the control panel (paths to your GIF files, measured link speed)
+state.json
+state.json.tmp
+open_panel.flag
+# simulator output
+previews/
+
+# --- Your own GIFs (keep only the samples in the repo) ---
+gifs/*
+!gifs/sample-ball.gif
+!gifs/sample-waves.gif
+
+# --- Python / tools ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.spec
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

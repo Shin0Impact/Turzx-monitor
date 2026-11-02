@@ -1,0 +1,43 @@
+# Turing Smart Screen settings. Most of these are also in the control panel (and saved in state.json,
+# which overrides this file). Restart the app after editing (tray icon > Quit, then run.bat).
+
+[screen]
+port = "AUTO"              # or "COM3"
+orientation = "portrait"   # portrait | reverse_portrait | landscape | reverse_landscape
+brightness = 50            # 0-100. High brightness makes these screens run hot; 50 or less is recommended
+chunk_size = 2560          # link tuning from benchmark.bat (0 = whole image per write)
+flow_control = true        # link tuning from benchmark.bat
+
+[display]
+mode = "stats"             # stats | detail | gif | clock
+idle = "clock"             # when Windows is locked or monitors turn off: "clock" or "off"
+idle_brightness = 25       # clock brightness while idle
+clock_seconds = true       # thin seconds bar under the clock
+calm = true                # big stats: redraw a number only when it really changed (less visible repainting)
+hide_redraws = true        # screen goes dark while a whole new picture loads (mode / GIF switch) instead of a wipe
+
+[dark]
+on_sleep = true            # screen off when the PC sleeps / hibernates (nothing can update it then)
+on_exit = true             # screen off when the app quits or the PC shuts down
+
+[stats]
+interval = 1.0             # seconds between updates
+drives = "auto"            # or a list, e.g. ["C:\\", "D:\\"]
+network_interface = "auto" # or an adapter name, e.g. "Ethernet"
+temp_unit = "C"            # C or F
+clock_24h = true
+# CPU temperature/power on Windows comes from LibreHardwareMonitor's web server
+# (LibreHardwareMonitor > Options > Remote Web Server > Run).
+librehardwaremonitor_url = "http://localhost:8085/data.json"
+
+[gif]
+folder = "gifs"
+fit = "cover"              # cover = fill screen | contain = whole GIF | original = native size, centered
+slideshow = false
+switch_seconds = 30        # slideshow: next GIF after this long
+max_fps = 20
+denoise = 12               # GIF noise clean-up: 0 = off, 12 = normal, 20 = strong
+
+[app]
+tray = true
+link_kbps = 120            # measured automatically; used for the GIF speed estimates

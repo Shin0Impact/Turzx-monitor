@@ -1,0 +1,7 @@
+pyserial>=3.5
+Pillow>=11
+numpy>=2
+psutil>=6
+nvidia-ml-py>=12
+pystray>=0.19
+sv-ttk>=2.6
