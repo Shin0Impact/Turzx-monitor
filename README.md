@@ -2,7 +2,8 @@
 
 An app for the Turing Smart Screen 3.5" (USB35INCHIPSV2). Pick what the screen shows in the control panel:
 
-- **Big stats**: CPU, GPU, RAM and network in large numbers you can read from your chair
+- **Big stats**: CPU, GPU, RAM (and network, off by default) in large numbers you can read from your chair.
+  Turn each item on/off in the control panel; the others grow to fill the screen.
 - **Detailed stats**: everything (per-core load, graphs, VRAM, drives, disk and network speed)
 - **GIF**: full screen, picked from your GIF library (or a slideshow)
 - **Clock**: big full-screen clock
@@ -36,7 +37,10 @@ Only the pixels that change are sent, so the label under each GIF (a playback si
 - Converted videos with colour noise. **Noise clean-up** removes most of it (normal/strong); on a noisy
   test GIF it took playback from 0.4 to about 3.7 fps without leaving trails.
 
-Where to find good ones: search for "pixel art gif", "sprite animation gif" or "transparent gif" (a transparent
+The `gifs` folder comes with 12 examples made for this screen (pixel cat, fish tank, campfire, heartbeat,
+spinner, orbit, bouncing badge, snake, Newton's cradle, ghost, clouds, terminal). `make_examples.py` regenerates them.
+
+Where to find more: search for "pixel art gif", "sprite animation gif" or "transparent gif" (a transparent
 background is shown on black, so only the subject moves).
 
 ## Repainting
@@ -48,8 +52,10 @@ The screen draws every change from top to bottom. To make that less visible:
 `benchmark.bat` (quit the app first) tries 7 link settings. On this screen they all measured ~125 KB/s, so the defaults are fine.
 
 ## CPU temperature
-Windows doesn't give apps the CPU temperature directly. Install [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor),
-run it, and turn on **Options > Remote Web Server > Run** (port 8085). Without it, CPU temperature shows `--`.
+Not shown. Windows doesn't expose the CPU temperature of a Ryzen 9 9900X to normal programs: all three built-in
+sources came back empty on this PC (`check_windows_temp.bat` shows what yours reports). Reading it needs a
+hardware driver, so the CPU row shows the clock speed instead. GPU temperature works (NVIDIA driver).
+Optional: set `librehardwaremonitor_url` in `config.toml` if you ever run LibreHardwareMonitor's web server.
 
 ## If the screen stays blank
 The official TURZX / USBMonitor app (or AIDA64) holds the screen's port. Close it, including from the tray, and disable it at startup.

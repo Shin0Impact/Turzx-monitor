@@ -120,7 +120,8 @@ def estimate(frames, durations, link_bytes_per_s, seconds=12):
 
 def thumbnail(path, box=(96, 96)):
     with Image.open(path) as im:
-        im.seek(0)
+        n = getattr(im, "n_frames", 1)
+        im.seek(n // 3 if n > 3 else 0)  # a frame from the middle shows what the GIF is about
         fr = im.convert("RGBA")
         canvas = Image.new("RGBA", box, BG + (255,))
         fr = ImageOps.fit(fr, box, Image.Resampling.LANCZOS)

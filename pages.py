@@ -4,7 +4,7 @@ from datetime import datetime
 
 from PIL import Image, ImageDraw
 
-from render import (BG, CPU_C, DIM, DOWN_C, EDGE, FAINT, GPU_C, RAM_C, TEXT, UP_C, Dashboard, bar, font,
+from render import (BG, CPU_C, DIM, DOWN_C, EDGE, FAINT, GPU_C, RAM_C, SUB, TEXT, UP_C, Dashboard, bar, font,
                     fmt_temp, graph, mix, temp_color, text_right, arrow)
 
 MODES = {
@@ -93,118 +93,208 @@ class DetailPage(Page):
         return self.dash.draw(data, hist)
 
 
+BIG_ITEMS = {"clock": "Clock & date", "cpu": "CPU", "gpu": "GPU", "ram": "RAM", "net": "Network"}
+BIG_DEFAULTS = {"clock": True, "cpu": True, "gpu": True, "ram": True, "net": False}
+
+
+def pct(v):
+    """06 instead of 6 (keeps the number the same width, so changing it repaints less)."""
+    return "--" if v is None else f"{v:02.0f}"
+
+
 class BigStatsPage(Page):
-    """Few values, very large, readable from across the desk. Values are held steady (Calm) so the
-    screen only repaints when something really changed."""
+    """Few values, very large, readable from across the desk. Each item can be turned off; the rest grow
+    to fill the screen. Values are held steady (Calm) so the screen only repaints on real changes."""
 
     def __init__(self, size, cfg):
         super().__init__(size, cfg)
         self.calm = Calm()
         self.calm_on = cfg.get("calm", True)
+        show = {**BIG_DEFAULTS, **(cfg.get("bigstats") or {})}
+        self.show_clock = show["clock"]
+        self.items = [k for k in ("cpu", "gpu", "ram", "net") if show[k]]
+        self._layout()
 
+    def _layout(self):
+        W, H = self.W, self.H
+        n = len(self.items)
+        portrait = W < H
+        self.header_h = 0
+        if self.show_clock:
+            self.header_h = (H if n == 0 else (74 if portrait else 62))
+        top = self.header_h
+        avail = H - top
+        boxes = []
+        if n:
+            if portrait:
+                rh = avail // n
+                boxes = [(0, top + i * rh, W, rh) for i in range(n)]
+            else:
+                if n == 4:
+                    rh = avail // 2
+                    boxes = [(0, top, W // 2, rh), (W // 2, top, W // 2, rh),
+                             (0, top + rh, W // 2, rh), (W // 2, top + rh, W // 2, rh)]
+                else:
+                    cw = W // n
+                    boxes = [(i * cw, top, cw, avail) for i in range(n)]
+        self.boxes = dict(zip(self.items, boxes))
+
+    # ----- values -----
+    def _values(self, data):
+        g = data.get("gpu") or {}
+        c = self.calm
+        raw = {
+            "cpu": data.get("cpu_load"), "cput": data.get("cpu_temp"), "clk": data.get("cpu_clock"),
+            "gpu": g.get("load"), "gput": g.get("temp"), "gpw": g.get("power"),
+            "ram": data.get("ram_pct"), "ramu": data.get("ram_used"), "ramt": data.get("ram_total"),
+            "down": data.get("down"), "up": data.get("up"),
+        }
+        if not self.calm_on:
+            return raw
+        steps = {"cpu": 3, "cput": 1.5, "clk": 300, "gpu": 3, "gput": 1.5, "gpw": 10, "ram": 1, "ramu": 0.2}
+        out = dict(raw)
+        for k, step in steps.items():
+            out[k] = c.abs(k, raw[k], step)
+        out["down"], out["up"] = c.rel("down", raw["down"]), c.rel("up", raw["up"])
+        return out
+
+    # ----- drawing -----
     def render(self, data, hist):
         img = self.new()
         d = ImageDraw.Draw(img)
-        now = datetime.now()
-        g = data.get("gpu") or {}
-        c = self.calm
-        if self.calm_on:
-            cpu_load = c.abs("cpu", data.get("cpu_load"), 3)
-            cpu_temp = c.abs("cput", data.get("cpu_temp"), 1.5)
-            clk = c.abs("clk", data.get("cpu_clock"), 300)
-            gpu_load = c.abs("gpu", g.get("load"), 3)
-            gpu_temp = c.abs("gput", g.get("temp"), 1.5)
-            gpw = c.abs("gpw", g.get("power"), 10)
-            data = {**data, "ram_pct": c.abs("ram", data.get("ram_pct"), 1),
-                    "ram_used": c.abs("ramu", data.get("ram_used"), 0.2),
-                    "down": c.rel("down", data.get("down")), "up": c.rel("up", data.get("up"))}
-        else:
-            cpu_load, cpu_temp, clk = data.get("cpu_load"), data.get("cpu_temp"), data.get("cpu_clock")
-            gpu_load, gpu_temp, gpw = g.get("load"), g.get("temp"), g.get("power")
-        rows = [
-            ("CPU", CPU_C, cpu_load, cpu_temp, f"{clk / 1000:.1f} GHz" if clk else ""),
-            ("GPU", GPU_C, gpu_load, gpu_temp, f"{gpw:.0f} W" if gpw is not None else ""),
-        ]
-        if self.W < self.H:  # portrait: header + 4 rows
-            hh, mm = self.hhmm(now)
-            d.text((10, 4), f"{hh}:{mm}", font=medium(24), fill=TEXT)
-            text_right(d, self.W - 10, 8, now.strftime("%a %d %b"), medium(18), DIM)
-            top, rh = 36, (self.H - 36) // 4
-            boxes = [(0, top + i * rh, self.W, rh) for i in range(4)]
-            big = 66
-        else:  # landscape: 2 x 2 tiles
-            top = 0
-            rh = self.H // 2
-            boxes = [(0, 0, self.W // 2, rh), (self.W // 2, 0, self.W // 2, rh),
-                     (0, rh, self.W // 2, rh), (self.W // 2, rh, self.W // 2, rh)]
-            big = 84
-        self.num_y = 24 if self.W < self.H else 36
-        for (label, col, load, temp, sub), box in zip(rows, boxes):
-            self._load_row(d, box, label, col, load, temp, sub, big)
-        self._ram_row(d, boxes[2], data, big)
-        self._net_row(d, boxes[3], data, hist, big)
-        # separators
-        for x, y, w, h in boxes:
+        v = self._values(data)
+        if self.show_clock:
+            self._header(d)
+        for k, box in self.boxes.items():
+            x, y, w, h = box
             if y > 0:
                 d.line((x + 10, y, x + w - 10, y), fill=EDGE)
             if x > 0:
                 d.line((x, y + 10, x, y + h - 10), fill=EDGE)
+            if k == "cpu":
+                if v["cput"] is None and v["clk"]:  # no temperature on this PC: show the clock speed instead
+                    wide = box[2] >= 300
+                    self._row(d, box, "CPU", CPU_C, pct(v["cpu"]), "%", f"{v['clk'] / 1000:.1f}" if wide else f"{v['clk'] / 1000:.1f} GHz",
+                              TEXT, "GHz", (v["cpu"] or 0) / 100)
+                else:
+                    self._load(d, box, "CPU", CPU_C, v["cpu"], v["cput"], f"{v['clk'] / 1000:.1f} GHz" if v["clk"] else "")
+            elif k == "gpu":
+                self._load(d, box, "GPU", GPU_C, v["gpu"], v["gput"], f"{v['gpw']:.0f} W" if v["gpw"] is not None else "")
+            elif k == "ram":
+                self._ram(d, box, v)
+            elif k == "net":
+                self._net(d, box, v)
         return img
 
-    def _number(self, d, x, y, value, size, suffix="%"):
-        s = "--" if value is None else f"{value:.0f}"
-        d.text((x, y), s, font=bold(size), fill=TEXT)
-        w = d.textlength(s, font=bold(size))
-        if value is not None and suffix:
-            d.text((x + w + 3, y + size * 0.48), suffix, font=bold(size // 2 - 4), fill=DIM)
+    def _header(self, d):
+        now = datetime.now()
+        hh, mm = self.hhmm(now)
+        t = f"{hh}:{mm}"
+        if not self.items:  # nothing else on: a full clock
+            f = bold(110 if self.W < self.H else 120)
+            d.text(((self.W - d.textlength(t, font=f)) / 2, self.H * 0.28), t, font=f, fill=TEXT)
+            day = now.strftime("%A  %d %B")
+            fd = medium(26)
+            d.text(((self.W - d.textlength(day, font=fd)) / 2, self.H * 0.28 + 140), day, font=fd, fill=SUB)
+            return
+        h = self.header_h
+        f = bold(int(h * 0.72))
+        d.text((10, (h - f.size) / 2 - f.size * 0.08), t, font=f, fill=TEXT)
+        day = now.strftime("%A")
+        date = now.strftime("%d %b")
+        fs = medium(int(h * 0.3))
+        text_right(d, self.W - 10, h * 0.12, day, fs, TEXT)
+        text_right(d, self.W - 10, h * 0.12 + fs.size * 1.15, date, fs, SUB)
 
-    def _load_row(self, d, box, label, col, load, temp, sub, big):
-        x, y, w, h = box
-        x0, x1 = x + 12, x + w - 12
-        d.text((x0, y + 8), label, font=bold(20), fill=col)
-        self._number(d, x0 - 3, y + self.num_y, load, big)
-        compact = w < 300
-        tsize = 30 if compact else 44
-        ty = y + (8 if compact else 26)
-        text_right(d, x1, ty, fmt_temp(temp, self.unit), bold(tsize), temp_color(temp))
-        if sub and not compact:
-            text_right(d, x1, y + 76, sub, medium(17), DIM)
-        bar(d, x0, y + h - 16, x1 - x0, 9, (load or 0) / 100, col)
+    # ----- one row / tile, fitted to its box -----
+    @staticmethod
+    def _cap(f):
+        """(top offset, height) of digits for a font: lets us place text by its visible top."""
+        l, t, r, b = f.getbbox("0123456789")
+        return t, b - t
 
-    def _ram_row(self, d, box, data, big):
-        x, y, w, h = box
-        x0, x1 = x + 12, x + w - 12
-        d.text((x0, y + 8), "RAM", font=bold(20), fill=RAM_C)
-        pct = data.get("ram_pct")
-        self._number(d, x0 - 3, y + self.num_y, pct, big)
-        used, tot = data.get("ram_used"), data.get("ram_total")
-        if used is not None:
-            compact = w < 300
-            text_right(d, x1, y + (8 if compact else 26), f"{used:.1f}" + (" GB" if compact else ""),
-                       bold(30 if compact else 44), TEXT)
-            if not compact:
-                text_right(d, x1, y + 76, f"of {tot:.0f} GB", medium(17), DIM)
-        bar(d, x0, y + h - 16, x1 - x0, 9, (pct or 0) / 100, RAM_C)
+    def _vtext(self, d, x, top, text, f, fill, right=False):
+        t, _ = self._cap(f)
+        if right:
+            x -= d.textlength(text, font=f)
+        d.text((x, top - t), text, font=f, fill=fill)
 
-    def _net_row(self, d, box, data, hist, big):
+    def _row(self, d, box, label, col, num, suffix, right, right_col, sub, frac, label_arrow=None, right_arrow=None):
         x, y, w, h = box
+        wide = w >= 300
+        s = h / 111 if wide else min(h / 145, w / 200)
         x0, x1 = x + 12, x + w - 12
-        compact = w < 300
-        arrow(d, x0, y + 12, False, DOWN_C, 13)
-        d.text((x0 + 18, y + 8), "NET", font=bold(20), fill=DOWN_C)
-        v, unit = rate_parts(data.get("down"))
-        size = 54  # fixed size: a size change would repaint the whole row
-        ny = y + 30 if not compact else y + self.num_y + 8
-        d.text((x0 - 2, ny), v, font=bold(size), fill=TEXT)
-        d.text((x0 + d.textlength(v, font=bold(size)) + 5, ny + size * 0.5), unit, font=bold(18), fill=DIM)
-        uv, uunit = rate_parts(data.get("up"))
-        us = f"{uv} {uunit}"
-        f = bold(22 if compact else 28)
-        uy = y + 8 if compact else y + 30
-        text_right(d, x1, uy, us, f, TEXT)
-        arrow(d, x1 - d.textlength(us, font=f) - 18, uy + (6 if compact else 8), True, UP_C, 12)
-        if not compact:
-            d.text((x1 - 60, uy + 40), "upload", font=medium(15), fill=DIM)
+        pad = max(6, int(8 * s))
+        L = bold(max(14, min(30, int(20 * s))))
+        lt, lh = self._cap(L)
+        lx = x0
+        if label_arrow:
+            arrow(d, x0, y + pad + lh * 0.1, False, label_arrow, int(lh * 0.9))
+            lx = x0 + lh * 1.25
+        self._vtext(d, lx, y + pad, label, L, col)
+        bar_h = max(6, min(14, int(9 * s)))
+        by = y + h - pad - bar_h
+        zt = y + pad + lh + pad
+        zb = (by - pad) if frac is not None else (y + h - pad)
+        zh = zb - zt
+        if not wide and right:  # tiles: secondary value on the label line
+            R = bold(max(14, min(34, int(L.size * 1.25))))
+            rw = d.textlength(right, font=R)
+            if rw > (x1 - lx) - d.textlength(label, font=L) - 10:
+                R = bold(L.size)
+            self._vtext(d, x1, y + pad + lh - self._cap(R)[1], right, R, right_col, right=True)
+        # number size: fill the zone height, then shrink until everything fits the width
+        size = int(min(140, zh / 0.73))
+        while size > 16:
+            F = bold(size)
+            Sf = bold(max(12, int(size * 0.4)))
+            nw = d.textlength(num, font=F) + (d.textlength(suffix, font=Sf) + 4 if suffix else 0)
+            rw = 0
+            if wide and right:
+                rw = d.textlength(right, font=bold(int(size * 0.62))) + (size * 0.4 if right_arrow else 0) + 14
+            if nw + rw <= x1 - x0:
+                break
+            size -= 2
+        F = bold(size)
+        nt, nh = self._cap(F)
+        top = zt + (zh - nh) / 2
+        self._vtext(d, x0 - 2, top, num, F, TEXT)
+        if suffix:
+            Sf = bold(max(12, int(size * 0.4)))
+            st, sh = self._cap(Sf)
+            self._vtext(d, x0 - 2 + d.textlength(num, font=F) + 4, top + nh - sh, suffix, Sf, SUB)
+        if wide and right:
+            T = bold(int(size * 0.62))
+            tt, th = self._cap(T)
+            S = medium(max(12, int(size * 0.25)))
+            sth = self._cap(S)[1] if sub else 0
+            block = th + (th * 0.4 + sth if sub else 0)
+            rt = zt + (zh - block) / 2
+            self._vtext(d, x1, rt, right, T, right_col, right=True)
+            if right_arrow:
+                aw = d.textlength(right, font=T)
+                arrow(d, x1 - aw - th * 0.75, rt + th * 0.15, True, right_arrow, int(th * 0.6))
+            if sub:
+                self._vtext(d, x1, rt + th * 1.4, sub, S, SUB, right=True)
+        if frac is not None:
+            bar(d, x0, by, x1 - x0, bar_h, frac, col)
+
+    def _load(self, d, box, label, col, load, temp, sub):
+        self._row(d, box, label, col, pct(load), "%", fmt_temp(temp, self.unit), temp_color(temp), sub,
+                  (load or 0) / 100)
+
+    def _ram(self, d, box, v):
+        used = v["ramu"]
+        wide = box[2] >= 300
+        right = None if used is None else (f"{used:.1f}" if wide else f"{used:.1f} GB")
+        sub = f"of {v['ramt']:.0f} GB" if used is not None and v.get("ramt") else ""
+        self._row(d, box, "RAM", RAM_C, pct(v["ram"]), "%", right, TEXT, sub, (v["ram"] or 0) / 100)
+
+    def _net(self, d, box, v):
+        val, unit = rate_parts(v["down"])
+        uv, uunit = rate_parts(v["up"])
+        self._row(d, box, "NET", DOWN_C, val, unit, f"{uv} {uunit}", TEXT, "upload", None,
+                  label_arrow=DOWN_C, right_arrow=UP_C)
 
 
 class ClockPage(Page):
@@ -234,10 +324,10 @@ class ClockPage(Page):
             w = d.textlength(s, font=f)
             d.text(((self.W - w) / 2, 10), s, font=f, fill=TEXT)
             fy = 212
-        fd = medium(26)
+        fd = medium(30)
         d.text(((self.W - d.textlength(date, font=fd)) / 2, fy), date, font=fd, fill=TEXT)
-        fd2 = medium(20)
-        d.text(((self.W - d.textlength(date2, font=fd2)) / 2, fy + 34), date2, font=fd2, fill=DIM)
+        fd2 = medium(24)
+        d.text(((self.W - d.textlength(date2, font=fd2)) / 2, fy + 38), date2, font=fd2, fill=SUB)
         if not self.h24:
             ap = now.strftime("%p")
             d.text((self.W - 44, 10), ap, font=medium(18), fill=DIM)

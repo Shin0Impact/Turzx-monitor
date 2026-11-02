@@ -18,6 +18,23 @@ from logging.handlers import RotatingFileHandler
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+
+def _crash(exc_type, exc, tb):
+    """Background launchers have no console: write any crash to logs/crash.log (and show it if we can)."""
+    import traceback
+    text = "".join(traceback.format_exception(exc_type, exc, tb))
+    try:
+        os.makedirs(os.path.join(HERE, "logs"), exist_ok=True)
+        with open(os.path.join(HERE, "logs", "crash.log"), "a", encoding="utf-8") as f:
+            import datetime
+            f.write(f"--- {datetime.datetime.now():%Y-%m-%d %H:%M:%S} ---\n{text}\n")
+    except Exception:
+        pass
+    sys.__excepthook__(exc_type, exc, tb)
+
+
+sys.excepthook = _crash
+
 try:
     import tomllib
 except ImportError:  # Python < 3.11
@@ -28,7 +45,7 @@ from PIL import Image
 import power_events
 from gifs import GifPlayer, list_gifs, make_sample_gifs
 from lcd import ORIENTATIONS, LcdError, SimulatedLcd, TuringRevA
-from pages import MODES, ClockPage, make_page
+from pages import BIG_DEFAULTS, MODES, ClockPage, make_page
 from render import dirty_rects
 from sensors import Stats
 
@@ -41,18 +58,19 @@ DEFAULTS = {
                 "hide_redraws": True, "calm": True},
     "dark": {"on_sleep": True, "on_exit": True},
     "stats": {"interval": 1.0, "drives": "auto", "network_interface": "auto",
-              "librehardwaremonitor_url": "http://localhost:8085/data.json",
+              "librehardwaremonitor_url": "",
               "temp_unit": "C", "clock_24h": True},
     "gif": {"folder": "gifs", "file": "", "slideshow": False, "switch_seconds": 30, "fit": "cover", "max_fps": 20,
             "denoise": 12},
     "app": {"tray": True, "link_kbps": 120},
+    "bigstats": dict(BIG_DEFAULTS),
 }
 STATE_FILE = os.path.join(HERE, "state.json")
 # settings the control panel can change; saved in state.json so they survive restarts
 STATE_KEYS = {("screen", "orientation"), ("screen", "brightness"), ("display", "mode"), ("display", "idle"),
               ("display", "idle_brightness"), ("display", "clock_seconds"), ("gif", "file"),
               ("gif", "slideshow"), ("gif", "fit"), ("app", "link_kbps"), ("display", "hide_redraws"),
-              ("display", "calm"), ("gif", "denoise")}
+              ("display", "calm"), ("gif", "denoise")} | {("bigstats", k) for k in BIG_DEFAULTS}
 
 
 def load_config(path):
@@ -158,6 +176,9 @@ class App:
         elif section == "display":
             self.view = None if name in ("mode", "idle", "clock_seconds", "calm") else self.view
             self.brightness_now = None
+        elif section == "bigstats":
+            if self.view == "stats":
+                self.view = None
         elif section == "gif":
             if name == "file" and value:
                 self.cfg["display"]["mode"] = "gif"
@@ -273,7 +294,7 @@ class App:
     def _enter_view(self, view):
         size = self.lcd.size
         st = {**self.cfg["stats"], "clock_seconds": self.cfg["display"]["clock_seconds"],
-              "calm": self.cfg["display"]["calm"]}
+              "calm": self.cfg["display"]["calm"], "bigstats": dict(self.cfg["bigstats"])}
         self.gif = None
         self.gif_shown = None
         if view == "gif":

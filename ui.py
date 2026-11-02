@@ -11,7 +11,7 @@ from PIL import Image, ImageTk
 
 from gifs import estimate, list_gifs, load_frames, thumbnail
 from lcd import ORIENTATIONS
-from pages import MODES
+from pages import BIG_ITEMS, MODES
 
 FIT_LABELS = {"cover": "Fill screen (crop edges)", "contain": "Whole GIF (bars)", "original": "Original size"}
 DENOISE_LABELS = {0: "Noise clean-up: off", 12: "Noise clean-up: normal", 20: "Noise clean-up: strong"}
@@ -29,7 +29,7 @@ class ControlPanel:
         self.results = queue.Queue()  # from GIF analysis threads
         self.root = tk.Tk()
         self.root.title("Turing Screen")
-        self.root.minsize(860, 660)
+        self.root.minsize(860, 700)
         try:
             import sv_ttk
             sv_ttk.set_theme("dark")
@@ -46,6 +46,9 @@ class ControlPanel:
         self.tiles = {}      # path -> frame widget
         self.analyzing = set()
         self.known_files = None
+        self.todo = queue.Queue()     # GIFs waiting for thumbnail + estimate (one worker thread)
+        self._blank = ImageTk.PhotoImage(Image.new("RGB", (TILE, TILE), (11, 13, 18)))
+        threading.Thread(target=self._worker, daemon=True, name="gif-analyze").start()
         self._build()
         self._refresh_controls()
         if not show:
@@ -86,7 +89,7 @@ class ControlPanel:
         right = ttk.Frame(outer)
         right.grid(row=0, column=1, sticky="nsew")
         right.columnconfigure(0, weight=1)
-        right.rowconfigure(2, weight=1)
+        right.rowconfigure(3, weight=1)
 
         # mode buttons
         ttk.Label(right, text="Show on screen", font=("Segoe UI", 11, "bold")).grid(row=0, column=0, sticky="w")
@@ -99,9 +102,20 @@ class ControlPanel:
             modes.columnconfigure(i, weight=1)
             self.mode_btns[m] = b
 
+        # Big stats items
+        bs = ttk.Frame(right)
+        bs.grid(row=2, column=0, sticky="ew", pady=(0, 10))
+        ttk.Label(bs, text="Big stats shows:").pack(side="left")
+        self.big_vars = {}
+        for key, label in BIG_ITEMS.items():
+            v = tk.BooleanVar()
+            ttk.Checkbutton(bs, text=label, variable=v,
+                            command=lambda k=key, v=v: self.app.set("bigstats", k, v.get())).pack(side="left", padx=(10, 0))
+            self.big_vars[key] = v
+
         # GIF library
         gif_box = ttk.LabelFrame(right, text=" GIFs ", padding=10)
-        gif_box.grid(row=2, column=0, sticky="nsew")
+        gif_box.grid(row=3, column=0, sticky="nsew")
         gif_box.columnconfigure(0, weight=1)
         gif_box.rowconfigure(1, weight=1)
         bar = ttk.Frame(gif_box)
@@ -126,7 +140,7 @@ class ControlPanel:
         canvas_wrap.grid(row=1, column=0, sticky="nsew")
         canvas_wrap.columnconfigure(0, weight=1)
         canvas_wrap.rowconfigure(0, weight=1)
-        self.canvas = tk.Canvas(canvas_wrap, highlightthickness=0, bg=self._bg(), height=220)
+        self.canvas = tk.Canvas(canvas_wrap, highlightthickness=0, bg=self._bg(), height=230)
         self.canvas.grid(row=0, column=0, sticky="nsew")
         sb = ttk.Scrollbar(canvas_wrap, orient="vertical", command=self.canvas.yview)
         sb.grid(row=0, column=1, sticky="ns")
@@ -144,7 +158,7 @@ class ControlPanel:
 
         # bottom: idle + screen settings
         bottom = ttk.Frame(right)
-        bottom.grid(row=3, column=0, sticky="ew", pady=(12, 0))
+        bottom.grid(row=4, column=0, sticky="ew", pady=(12, 0))
         bottom.columnconfigure(1, weight=1)
         bottom.columnconfigure(3, weight=1)
 
@@ -207,6 +221,8 @@ class ControlPanel:
             self.idle_b.set(c["display"]["idle_brightness"])
         self.clock_secs.set(bool(c["display"]["clock_seconds"]))
         self.calm_var.set(bool(c["display"]["calm"]))
+        for k, v in self.big_vars.items():
+            v.set(bool(c["bigstats"].get(k)))
         self.hide_var.set(bool(c["display"]["hide_redraws"]))
         self.dn_var.set(DENOISE_LABELS.get(c["gif"]["denoise"], f"Noise clean-up: {c['gif']['denoise']}"))
         self._highlight_selected()
@@ -247,7 +263,7 @@ class ControlPanel:
     def _make_tile(self, path):
         bg = self._bg()
         t = tk.Frame(self.grid_frame, bg=bg, highlightthickness=2, highlightbackground=bg, cursor="hand2")
-        img = tk.Label(t, bg="#0b0d12", width=TILE, height=TILE, bd=0)
+        img = tk.Label(t, bg="#0b0d12", image=self._blank, bd=0)  # image set now so size is in pixels
         img.pack(padx=4, pady=(4, 2))
         name = os.path.splitext(os.path.basename(path))[0]
         tk.Label(t, text=name[:14], bg=bg, fg="#e8ecf4", font=("Segoe UI", 9)).pack()
@@ -275,21 +291,27 @@ class ControlPanel:
 
     def _analyze(self, path):
         self.analyzing.add(path)
-        size = self.app.lcd.size
-        fit = self.app.cfg["gif"]["fit"]
-        denoise = self.app.cfg["gif"]["denoise"]
-        link = self.app.cfg["app"]["link_kbps"] * 1024
+        self.todo.put(path)
 
-        def work():
+    def _worker(self):
+        """One GIF at a time: thumbnail first (fast, shown right away), then the playback estimate."""
+        while True:
+            path = self.todo.get()
             info = {}
             try:
                 info["thumb"] = thumbnail(path, (TILE, TILE))
-                frames, durs = load_frames(path, size, fit, denoise)
-                est, own = estimate(frames, durs, link)
+                self.results.put((path, dict(info), False))
+                size = self.app.lcd.size
+                g = self.app.cfg["gif"]
+                frames, durs = load_frames(path, size, g["fit"], g["denoise"])
+                est, own = estimate(frames, durs, self.app.cfg["app"]["link_kbps"] * 1024)
+                del frames
                 if est is None:
                     info["est"], info["color"] = "still image", "#8a93a6"
                 elif est >= own * 0.9:
                     info["est"], info["color"] = f"smooth ({own:.0f} fps)", "#76e35f"
+                elif est >= 10:
+                    info["est"], info["color"] = f"smooth (~{est:.0f} fps)", "#76e35f"
                 elif est >= 4:
                     info["est"], info["color"] = f"~{est:.0f} of {own:.0f} fps", "#fbbf24"
                 else:
@@ -298,9 +320,7 @@ class ControlPanel:
                 info["est"], info["color"] = "can't open", "#f87171"
                 info.setdefault("thumb", Image.new("RGB", (TILE, TILE), (40, 20, 20)))
                 self.app_log(f"gif analysis failed for {path}: {e}")
-            self.results.put((path, info))
-
-        threading.Thread(target=work, daemon=True, name="gif-analyze").start()
+            self.results.put((path, info, True))
 
     def app_log(self, msg):
         import logging
@@ -308,15 +328,19 @@ class ControlPanel:
 
     def _collect_results(self):
         while not self.results.empty():
-            path, info = self.results.get_nowait()
-            self.analyzing.discard(path)
+            path, info, done = self.results.get_nowait()
             t = self.tiles.get(path)
             if not t:
+                self.analyzing.discard(path)
                 continue
-            info["photo"] = ImageTk.PhotoImage(info["thumb"])
-            self.gif_info[path] = info
-            t.img.configure(image=info["photo"], width=TILE, height=TILE)
-            t.est.configure(text=info["est"], fg=info["color"])
+            if "thumb" in info:
+                info["photo"] = ImageTk.PhotoImage(info["thumb"])
+                t.photo = info["photo"]
+                t.img.configure(image=info["photo"])
+            if done:
+                self.analyzing.discard(path)
+                self.gif_info[path] = info
+                t.est.configure(text=info["est"], fg=info["color"])
 
     def _tile_menu(self, event, path):
         m = tk.Menu(self.root, tearoff=0)

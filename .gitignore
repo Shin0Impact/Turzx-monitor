@@ -1,6 +1,7 @@
 # --- Info about this PC (don't publish) ---
 # hardware report: USB device IDs and serial numbers, GPU, Windows build
 detect_report.txt
+windows_temp_report.txt
 # logs contain CPU/GPU model, COM port, timestamps of lock/sleep events
 logs/
 *.log
@@ -11,10 +12,22 @@ open_panel.flag
 # simulator output
 previews/
 
-# --- Your own GIFs (keep only the samples in the repo) ---
+# --- Your own GIFs (keep only the bundled examples in the repo) ---
 gifs/*
 !gifs/sample-ball.gif
 !gifs/sample-waves.gif
+!gifs/pixel-cat.gif
+!gifs/fish-tank.gif
+!gifs/campfire.gif
+!gifs/heartbeat.gif
+!gifs/spinner.gif
+!gifs/orbit.gif
+!gifs/bouncing-badge.gif
+!gifs/snake.gif
+!gifs/newtons-cradle.gif
+!gifs/ghost.gif
+!gifs/clouds.gif
+!gifs/terminal.gif
 
 # --- Python / tools ---
 .venv/

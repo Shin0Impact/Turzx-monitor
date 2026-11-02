@@ -13,7 +13,8 @@ BG = (8, 10, 15)
 CARD = (18, 22, 31)
 EDGE = (32, 38, 52)
 TEXT = (232, 236, 244)
-DIM = (128, 138, 158)
+DIM = (165, 174, 194)
+SUB = (208, 215, 230)  # secondary values (GHz, W, of 31 GB...)
 FAINT = (58, 66, 84)
 CPU_C = (56, 189, 248)
 GPU_C = (118, 227, 95)
@@ -241,16 +242,19 @@ class Dashboard:
         load = data.get("cpu_load")
         temp = data.get("cpu_temp")
         big = mono(30)
-        s = f"{load:.0f}%" if load is not None else "--"
+        s = f"{load:02.0f}%" if load is not None else "--"
         d.text((x0, y0 + 16), s, font=big, fill=TEXT)
         info_x = x0 + 96
         f = mono(14)
-        d.text((info_x, y0 + 20), fmt_temp(temp, self.unit), font=f, fill=temp_color(temp))
         clk = data.get("cpu_clock")
-        d.text((info_x + 46, y0 + 20), f"{clk / 1000:.2f}GHz" if clk else "--", font=f, fill=TEXT)
+        cx = info_x
+        if temp is not None:
+            d.text((info_x, y0 + 20), fmt_temp(temp, self.unit), font=f, fill=temp_color(temp))
+            cx = info_x + 46
+        d.text((cx, y0 + 20), f"{clk / 1000:.2f}GHz" if clk else "--", font=f, fill=TEXT)
         pw = data.get("cpu_power")
-        d.text((info_x, y0 + 38), f"{pw:.0f} W" if pw else ("LHM off" if temp is None else ""),
-               font=sans(11, "Regular"), fill=DIM)
+        if pw:
+            d.text((info_x, y0 + 38), f"{pw:.0f} W", font=sans(11, "Regular"), fill=SUB)
         # graph on the right part of the top row
         gx = info_x + 116
         if x1 - gx > 30:
@@ -275,7 +279,7 @@ class Dashboard:
         d.text((x0, y0), "GPU", font=sans(13, "Bold"), fill=GPU_C)
         d.text((x0 + 34, y0 + 1), name[:28], font=sans(11, "Regular"), fill=DIM)
         load = g.get("load")
-        d.text((x0, y0 + 16), f"{load:.0f}%" if load is not None else "--", font=mono(30), fill=TEXT)
+        d.text((x0, y0 + 16), f"{load:02.0f}%" if load is not None else "--", font=mono(30), fill=TEXT)
         info_x = x0 + 96
         f = mono(14)
         t = g.get("temp")
@@ -288,7 +292,7 @@ class Dashboard:
         if clk:
             extra.append(f"{clk:.0f} MHz")
         if fan is not None:
-            extra.append(f"fan {fan:.0f}%")
+            extra.append(f"fan {fan:02.0f}%")
         d.text((info_x, y0 + 38), "  ".join(extra), font=sans(11, "Regular"), fill=DIM)
         gx = info_x + 116
         gh = 34
@@ -312,7 +316,7 @@ class Dashboard:
         x0, x1 = b.x + 10, b.x + b.w - 8
         d.text((x0, b.y + 5), "RAM", font=sans(12, "Bold"), fill=RAM_C)
         used, tot, pct = data.get("ram_used"), data.get("ram_total"), data.get("ram_pct")
-        text_right(d, x1, b.y + 4, f"{pct:.0f}%" if pct is not None else "--", mono(14), TEXT)
+        text_right(d, x1, b.y + 4, f"{pct:02.0f}%" if pct is not None else "--", mono(14), TEXT)
         if used is not None:
             d.text((x0, b.y + 21), f"{used:.1f}/{tot:.0f} GB", font=sans(11, "Regular"), fill=DIM)
         bar(d, x0, b.y + b.h - 11, x1 - x0, 5, (pct or 0) / 100, RAM_C)

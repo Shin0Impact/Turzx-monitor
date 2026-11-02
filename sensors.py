@@ -116,7 +116,7 @@ class LibreHardwareMonitor:
                 tree = json.load(r)
         except Exception:
             self.ok = False
-            self.next_try = time.time() + 30
+            self.next_try = time.time() + 10
             return None
         self.ok = True
         temps, powers, clocks = {}, {}, []
@@ -129,7 +129,8 @@ class LibreHardwareMonitor:
                 re.search(r"ryzen|intel|core i|xeon|epyc|threadripper", x, re.I) for x in path[1:3])
             if "Value" in node and in_cpu and node.get("Children") == []:
                 kind = node.get("Type") or (p[-2] if len(p) > 1 else "")
-                v = self._num(node.get("Value"))
+                raw = node.get("RawValue")  # newer versions: plain number, no locale formatting
+                v = float(raw) if isinstance(raw, (int, float)) else self._num(node.get("Value"))
                 if v is not None:
                     if "emperature" in kind:
                         temps[text] = v
@@ -142,7 +143,8 @@ class LibreHardwareMonitor:
 
         walk(tree, [])
         temp = None
-        for k in ("Core (Tctl/Tdie)", "Tctl/Tdie", "CPU Package", "Package", "Core (Tdie)", "Tdie", "Tctl", "Core Average"):
+        for k in ("Core (Tctl/Tdie)", "Tctl/Tdie", "CPU Package", "Package", "Core (Tdie)", "Tdie", "Core (Tctl)",
+                  "Tctl", "Core Average"):
             if k in temps:
                 temp = temps[k]
                 break

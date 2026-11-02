@@ -16,6 +16,13 @@ clock_seconds = true       # thin seconds bar under the clock
 calm = true                # big stats: redraw a number only when it really changed (less visible repainting)
 hide_redraws = true        # screen goes dark while a whole new picture loads (mode / GIF switch) instead of a wipe
 
+[bigstats]                 # what Big stats shows (also in the control panel); the rest grows to fill the screen
+clock = true               # clock & date at the top
+cpu = true
+gpu = true
+ram = true
+net = false
+
 [dark]
 on_sleep = true            # screen off when the PC sleeps / hibernates (nothing can update it then)
 on_exit = true             # screen off when the app quits or the PC shuts down
@@ -26,9 +33,9 @@ drives = "auto"            # or a list, e.g. ["C:\\", "D:\\"]
 network_interface = "auto" # or an adapter name, e.g. "Ethernet"
 temp_unit = "C"            # C or F
 clock_24h = true
-# CPU temperature/power on Windows comes from LibreHardwareMonitor's web server
-# (LibreHardwareMonitor > Options > Remote Web Server > Run).
-librehardwaremonitor_url = "http://localhost:8085/data.json"
+# CPU temperature: Windows does not expose it to normal programs (checked on this PC), so it is not shown.
+# Optional: put a LibreHardwareMonitor web server URL here (e.g. "http://localhost:8085/data.json") to get it.
+librehardwaremonitor_url = ""
 
 [gif]
 folder = "gifs"
