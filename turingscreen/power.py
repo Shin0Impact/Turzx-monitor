@@ -24,6 +24,8 @@ class PowerEvent(StrEnum):
     DISPLAY_DIM = "display_dim"
     LOCK = "lock"
     UNLOCK = "unlock"
+    SHUTDOWN_PENDING = "shutdown_pending"  # Windows asked whether it may shut down
+    SHUTDOWN_CANCELLED = "shutdown_cancelled"
     SHUTDOWN = "shutdown"
 
 
@@ -108,6 +110,8 @@ def _message_loop(callback: Callable[[PowerEvent], None]) -> None:
     user32.TranslateMessage.argtypes = [ctypes.POINTER(wt.MSG)]
     user32.DispatchMessageW.argtypes = [ctypes.POINTER(wt.MSG)]
     user32.DispatchMessageW.restype = lresult
+    kernel32.SetProcessShutdownParameters.argtypes = [wt.DWORD, wt.DWORD]
+    kernel32.SetProcessShutdownParameters.restype = wt.BOOL
     kernel32.GetModuleHandleW.argtypes = [wt.LPCWSTR]
     kernel32.GetModuleHandleW.restype = wt.HMODULE
     wtsapi32.WTSRegisterSessionNotification.argtypes = [wt.HWND, wt.DWORD]
@@ -138,10 +142,10 @@ def _message_loop(callback: Callable[[PowerEvent], None]) -> None:
                     emit(PowerEvent.UNLOCK)
                 return 0
             if msg == WM_QUERYENDSESSION:
-                return 1  # allow shutdown; act on WM_ENDSESSION, because shutdown can still be cancelled
+                emit(PowerEvent.SHUTDOWN_PENDING)  # blank the screen now: the process may be killed right after
+                return 1
             if msg == WM_ENDSESSION:
-                if wparam:
-                    emit(PowerEvent.SHUTDOWN)
+                emit(PowerEvent.SHUTDOWN if wparam else PowerEvent.SHUTDOWN_CANCELLED)
                 return 0
         except Exception:
             log.exception("power window handler failed")
@@ -165,6 +169,7 @@ def _message_loop(callback: Callable[[PowerEvent], None]) -> None:
         log.warning("monitor-off notifications unavailable (%s)", ctypes.get_last_error())
     if not wtsapi32.WTSRegisterSessionNotification(hwnd, 0):
         log.warning("lock notifications unavailable (%s)", ctypes.get_last_error())
+    kernel32.SetProcessShutdownParameters(0x3FF, 0)  # ask to be told early, before most programs close
     log.info("listening for sleep / lock / monitor off")
 
     message = wt.MSG()

@@ -94,8 +94,13 @@ class App:
                 self._idle_reasons.add("locked")
             elif event is PowerEvent.UNLOCK:
                 self._idle_reasons.discard("locked")
-            elif event is PowerEvent.SHUTDOWN and self.cfg["dark"]["on_exit"]:
+            elif event is PowerEvent.SHUTDOWN_PENDING and self.cfg["dark"]["on_exit"]:
                 self._dark_reasons.add("shutdown")
+            elif event is PowerEvent.SHUTDOWN_CANCELLED:
+                self._dark_reasons.discard("shutdown")
+            elif event is PowerEvent.SHUTDOWN:
+                if self.cfg["dark"]["on_exit"]:
+                    self._dark_reasons.add("shutdown")
                 self.stop.set()
             if self.wanted_view() == DARK:
                 self.stats.pause(True)

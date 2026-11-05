@@ -167,6 +167,23 @@ def test_shutdown_goes_dark_and_stops_the_loop(rig):
     assert not rig.lcd.is_on
 
 
+def test_shutdown_request_blanks_the_screen_at_once(rig):
+    start(rig)
+    rig.app.on_power(PowerEvent.SHUTDOWN_PENDING)
+    assert not rig.lcd.is_on
+    assert not rig.app.stop.is_set()
+
+
+def test_cancelled_shutdown_brings_the_screen_back(rig):
+    start(rig)
+    rig.app.on_power(PowerEvent.SHUTDOWN_PENDING)
+    rig.app.on_power(PowerEvent.SHUTDOWN_CANCELLED)
+    rig.step()
+    rig.settle()
+    assert rig.lcd.is_on
+    assert rig.app.view_name == "stats"
+
+
 def test_quit_turns_the_screen_off(rig):
     start(rig)
     rig.app.shutdown()
