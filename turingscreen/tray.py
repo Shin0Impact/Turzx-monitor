@@ -8,6 +8,7 @@ from collections.abc import Callable
 
 from PIL import Image, ImageDraw
 
+from . import menustyle
 from .app import App
 from .views import MODES
 
@@ -60,6 +61,7 @@ def start(app: App, open_panel: Callable[[], None] | None = None):
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Quit", quit_app),
     ]
+    menustyle.apply()
     icon = pystray.Icon("turing-screen", icon_image(), "Turing Screen", pystray.Menu(*items))
     threading.Thread(target=icon.run, daemon=True, name="tray").start()
     return icon
