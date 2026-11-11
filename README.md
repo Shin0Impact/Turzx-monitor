@@ -3,6 +3,16 @@
 Live system stats, GIFs and a clock for the **Turing Smart Screen 3.5"** (USB, serial ID `USB35INCHIPSV2`),
 with a small control panel on your PC. It goes dark when the PC sleeps and shows a dim clock while Windows is locked.
 
+## At a glance
+
+| | |
+|---|---|
+| **What** | Desktop app that drives a Turing Smart Screen 3.5" over USB: live stats, GIFs and a clock, with a control panel on the PC |
+| **Stack** | Python for Windows; own display protocol layer, tray icon and control panel |
+| **Quality** | 150+ pytest tests: protocol bytes, drawing, app behaviour on a simulated screen, and the control panel |
+
+## What it shows
+
 | Show | What it is |
 |---|---|
 | **Big stats** | CPU, GPU, RAM (and network) in large numbers readable from across the desk. Each item can be turned off; the rest grow to fill the screen. |
